@@ -15,13 +15,13 @@ API_HASH = os.environ["API_HASH"]
 SESSION_STRING = os.environ["SESSION_STRING"]
 
 SOURCE_CHAT = os.environ["SOURCE_CHAT"].lstrip("@")
-DEST_CHAT = os.environ["DEST_CHAT"]  # نضعه لاحقاً بعد معرفة ID
+DEST_CHAT = int(os.environ["DEST_CHAT"])
 
 STRONG_THRESHOLD = int(os.environ.get("STRONG_THRESHOLD", 75))
 ELITE_THRESHOLD = int(os.environ.get("ELITE_THRESHOLD", 80))
 
 # ==============================
-# 🔹 WEB SERVER (For Railway)
+# 🔹 WEB SERVER (Railway keep-alive)
 # ==============================
 
 app = Flask(__name__)
@@ -58,9 +58,6 @@ async def run_bot():
             @client.on(events.NewMessage(chats=SOURCE_CHAT))
             async def handler(event):
 
-                # 🔥 هذا السطر مهم — سيطبع رقم القناة في Logs
-                print("THIS CHAT ID IS:", event.chat_id)
-
                 text = event.raw_text or ""
 
                 if event.id in already_sent:
@@ -74,6 +71,8 @@ async def run_bot():
                 dev = extract_number(r'Dev:.*?\|\s*(\d+)', text)
 
                 score = 0
+
+                # 🔥 Smart Momentum Model
 
                 if mc and 70000 <= mc <= 130000:
                     score += 20
@@ -92,6 +91,8 @@ async def run_bot():
 
                 if dev is not None and dev == 0:
                     score += 10
+
+                # ==============================
 
                 if score >= ELITE_THRESHOLD:
                     label = "🔥 ELITE SETUP"
