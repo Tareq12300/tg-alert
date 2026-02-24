@@ -21,7 +21,7 @@ STRONG_THRESHOLD = int(os.environ.get("STRONG_THRESHOLD", 75))
 ELITE_THRESHOLD = int(os.environ.get("ELITE_THRESHOLD", 80))
 
 # ==============================
-# 🔹 WEB SERVER (Railway keep-alive)
+# 🔹 FLASK APP (For gunicorn)
 # ==============================
 
 app = Flask(__name__)
@@ -29,10 +29,6 @@ app = Flask(__name__)
 @app.route("/")
 def home():
     return "alive", 200
-
-def run_web():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port, use_reloader=False)
 
 # ==============================
 # 🔹 UTILS
@@ -47,7 +43,7 @@ def extract_number(pattern, text):
 already_sent = set()
 
 # ==============================
-# 🔹 BOT CORE
+# 🔹 TELEGRAM BOT
 # ==============================
 
 async def run_bot():
@@ -112,10 +108,10 @@ async def run_bot():
     await client.run_until_disconnected()
 
 # ==============================
-# 🔹 MAIN LOOP (Auto Restart Protection)
+# 🔹 BACKGROUND THREAD
 # ==============================
 
-def start_async_loop():
+def start_bot():
     while True:
         try:
             asyncio.run(run_bot())
@@ -125,9 +121,7 @@ def start_async_loop():
             asyncio.sleep(10)
 
 # ==============================
-# 🔹 START APP
+# 🔹 START BOT THREAD
 # ==============================
 
-if __name__ == "__main__":
-    threading.Thread(target=run_web, daemon=True).start()
-    start_async_loop()
+threading.Thread(target=start_bot, daemon=True).start()
