@@ -1,5 +1,7 @@
 import os
 import re
+import io
+import mimetypes
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
@@ -69,6 +71,96 @@ def get_symbol(text):
     return "UNKNOWN"
 
 
+def get_document_filename(document):
+    if not document:
+        return None
+
+    for attr in getattr(document, "attributes", []):
+        if hasattr(attr, "file_name") and attr.file_name:
+            return attr.file_name
+
+    return None
+
+
+def build_upload_file(file_bytes, filename):
+    bio = io.BytesIO(file_bytes)
+    bio.name = filename
+    return bio
+
+
+async def resend_media(event, target, caption):
+    # صورة تيليجرام العادية
+    if event.photo:
+        file_bytes = await event.download_media(file=bytes)
+        if not file_bytes:
+            await bot_client.send_message(target, caption)
+            return
+
+        photo_file = build_upload_file(file_bytes, "image.jpg")
+        await bot_client.send_file(
+            target,
+            photo_file,
+            caption=caption,
+            force_document=False
+        )
+        return
+
+    # ملفات أو صور مرفوعة كـ document
+    if event.document:
+        document = event.document
+        mime_type = getattr(document, "mime_type", "") or ""
+        filename = get_document_filename(document)
+
+        file_bytes = await event.download_media(file=bytes)
+        if not file_bytes:
+            await bot_client.send_message(target, caption)
+            return
+
+        # إذا كان الملف صورة، نعيد رفعه كصورة وليس Download
+        if mime_type.startswith("image/"):
+            ext = mimetypes.guess_extension(mime_type) or ".jpg"
+            image_name = filename or f"image{ext}"
+            image_file = build_upload_file(file_bytes, image_name)
+
+            await bot_client.send_file(
+                target,
+                image_file,
+                caption=caption,
+                force_document=False
+            )
+            return
+
+        # إذا كان فيديو
+        if mime_type.startswith("video/"):
+            ext = mimetypes.guess_extension(mime_type) or ".mp4"
+            video_name = filename or f"video{ext}"
+            video_file = build_upload_file(file_bytes, video_name)
+
+            await bot_client.send_file(
+                target,
+                video_file,
+                caption=caption,
+                supports_streaming=True,
+                force_document=False
+            )
+            return
+
+        # أي ملف آخر
+        generic_name = filename or "media.bin"
+        generic_file = build_upload_file(file_bytes, generic_name)
+
+        await bot_client.send_file(
+            target,
+            generic_file,
+            caption=caption,
+            force_document=True
+        )
+        return
+
+    # لو ما فيه ميديا
+    await bot_client.send_message(target, caption)
+
+
 @telethon_client.on(events.NewMessage(chats=TARGET_CHAT))
 async def handler(event):
     text = event.raw_text or ""
@@ -91,11 +183,7 @@ Volume 1h: ${volume:,.0f}
         target = int(SEND_TO) if SEND_TO.lstrip("-").isdigit() else SEND_TO
 
         if event.media:
-            await bot_client.send_file(
-                target,
-                event.media,
-                caption=msg
-            )
+            await resend_media(event, target, msg)
         else:
             await bot_client.send_message(target, msg)
 
