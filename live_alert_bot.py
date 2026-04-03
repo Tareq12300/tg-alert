@@ -91,15 +91,11 @@ Volume 1h: ${volume:,.0f}
         target = int(SEND_TO) if SEND_TO.lstrip("-").isdigit() else SEND_TO
 
         if event.media:
-            media_file = await event.download_media(file=bytes)
-            if media_file:
-                await bot_client.send_file(
-                    target,
-                    media_file,
-                    caption=msg
-                )
-            else:
-                await bot_client.send_message(target, msg)
+            await bot_client.send_file(
+                target,
+                event.media,
+                caption=msg
+            )
         else:
             await bot_client.send_message(target, msg)
 
