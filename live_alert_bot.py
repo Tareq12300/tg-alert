@@ -66,10 +66,6 @@ def get_symbol(text):
     return "UNKNOWN"
 
 
-def has_media(event):
-    return bool(event.photo or event.video or event.gif or event.sticker or event.document)
-
-
 @client.on(events.NewMessage(chats=TARGET_CHAT))
 async def handler(event):
     text = event.raw_text or ""
@@ -91,17 +87,12 @@ Volume 1h: ${volume:,.0f}
     try:
         entity = await client.get_entity(int(SEND_TO))
 
-        if has_media(event):
-            media_file = await event.download_media(file=bytes)
-            if media_file:
-                await client.send_file(
-                    entity,
-                    media_file,
-                    caption=msg,
-                    force_document=False
-                )
-            else:
-                await client.send_message(entity, msg)
+        if event.media:
+            await client.send_file(
+                entity,
+                event.media,
+                caption=msg
+            )
         else:
             await client.send_message(entity, msg)
 
