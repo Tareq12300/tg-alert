@@ -2,7 +2,7 @@ import os
 import re
 import io
 import mimetypes
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
@@ -16,6 +16,7 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 
 VOLUME_LIMIT = int(os.environ.get("VOLUME_LIMIT", "130000"))
 TRACK_HOURS = int(os.environ.get("TRACK_HOURS", "24"))
+HOLDERS_LIMIT = int(os.environ.get("HOLDERS_LIMIT", "600"))
 
 if TARGET_CHAT.lstrip("-").isdigit():
     TARGET_CHAT = int(TARGET_CHAT)
@@ -62,6 +63,20 @@ def parse_volume(text):
     return None
 
 
+def parse_holders(text):
+    patterns = [
+        r"Hodls:\s*([0-9,]+)",
+        r"Holds:\s*([0-9,]+)"
+    ]
+
+    for pattern in patterns:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            return int(m.group(1).replace(",", ""))
+
+    return None
+
+
 def get_symbol(text):
     patterns = [
         r"\$([A-Z0-9]{2,20})\b",
@@ -77,11 +92,6 @@ def get_symbol(text):
 
 
 def parse_up_signal(text):
-    """
-    أمثلة:
-    YURI is up 54%
-    YURI is up 2.1X
-    """
     m = re.search(r"\b([A-Z0-9]{2,20})\s+is\s+up\s+([0-9\.]+)\s*(%|X)\b", text, re.IGNORECASE)
     if not m:
         return None
@@ -98,10 +108,6 @@ def parse_up_signal(text):
 
 
 def parse_mc_range(text):
-    """
-    يقرأ:
-    $103K —> $159K
-    """
     m = re.search(r"\$([0-9\.,]+[KMB]?)\s*[—\-–>]+\s*\$([0-9\.,]+[KMB]?)", text)
     if not m:
         return None
@@ -112,7 +118,7 @@ def parse_mc_range(text):
 
 
 def cleanup_old_tokens():
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     expired = []
 
     for symbol, dt in alerted_tokens.items():
@@ -218,12 +224,14 @@ async def handler(event):
         # 1) تنبيه الدخول الأساسي
         volume = parse_volume(text)
         symbol = get_symbol(text)
+        holders = parse_holders(text)
 
-        if volume and volume >= VOLUME_LIMIT and symbol:
+        if volume and volume >= VOLUME_LIMIT and symbol and holders is not None and holders <= HOLDERS_LIMIT:
             msg = f"""🚨 Whale Alert
 
 Token: {symbol}
 Volume 1h: ${volume:,.0f}
+Holders: {holders}
 
 {text}
 """
@@ -233,8 +241,8 @@ Volume 1h: ${volume:,.0f}
             else:
                 await bot_client.send_message(target, msg)
 
-            alerted_tokens[symbol] = datetime.utcnow()
-            print("ENTRY ALERT:", symbol, volume)
+            alerted_tokens[symbol] = datetime.now(timezone.utc)
+            print("ENTRY ALERT:", symbol, volume, "holders=", holders)
             return
 
         # 2) تنبيه الارتفاع لنفس العملة إذا كانت أرسلت سابقًا
@@ -275,6 +283,7 @@ async def main():
     print("Logged in as:", me.first_name)
     print("Listening to:", TARGET_CHAT)
     print("Volume filter:", VOLUME_LIMIT)
+    print("Holders max:", HOLDERS_LIMIT)
     print("Track hours:", TRACK_HOURS)
     print("Bot sender started")
 
